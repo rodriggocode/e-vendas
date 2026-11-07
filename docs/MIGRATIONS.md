@@ -34,7 +34,7 @@ go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@lat
 ### Banco rodando
 
 ```bash
-cd /home/rodrigo/Www/loja
+cd /caminho/do/e-vendas   # raiz do projeto
 podman compose up -d
 podman compose ps
 ```
@@ -44,7 +44,7 @@ podman compose ps
 ## Variáveis do projeto
 
 ```bash
-cd /home/rodrigo/Www/loja
+cd /caminho/do/e-vendas   # raiz do projeto
 
 export DATABASE_URL='postgres://loja:loja@localhost:5433/loja?sslmode=disable'
 export MIGRATIONS_DIR='migrations'
@@ -68,10 +68,10 @@ Cada migration é um par `up`/`down` com a **mesma versão**:
 
 ```
 migrations/
-├── 000001_create_categorias.up.sql
-├── 000001_create_categorias.down.sql
-├── 000002_create_produtos.up.sql
-└── 000002_create_produtos.down.sql
+├── 000001_create_updated_at_function.up.sql
+├── 000001_create_updated_at_function.down.sql
+├── 000002_create_users.up.sql
+└── 000002_create_users.down.sql
 ```
 
 Regras:
@@ -91,8 +91,8 @@ Regras:
 Crie os dois arquivos com a próxima versão disponível:
 
 ```bash
-touch migrations/000001_create_categorias.up.sql
-touch migrations/000001_create_categorias.down.sql
+touch migrations/000001_create_updated_at_function.up.sql
+touch migrations/000001_create_updated_at_function.down.sql
 ```
 
 ### Pelo CLI
@@ -274,7 +274,7 @@ migrate -verbose -path "$MIGRATIONS_DIR" -database "$DATABASE_URL" up
 
 ## Exemplo completo
 
-`migrations/000001_create_categorias.up.sql`:
+`migrations/000001_create_updated_at_function.up.sql`:
 
 ```sql
 CREATE TABLE categorias (
@@ -292,7 +292,7 @@ CREATE INDEX categorias_categoria_pai_id_idx
     ON categorias (categoria_pai_id);
 ```
 
-`migrations/000001_create_categorias.down.sql`:
+`migrations/000001_create_updated_at_function.down.sql`:
 
 ```sql
 DROP TABLE IF EXISTS categorias;

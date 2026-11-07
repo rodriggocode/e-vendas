@@ -1,16 +1,17 @@
-# Arquitetura — Loja
+# Arquitetura — e-vendas
 
 Documento de referência da arquitetura do projeto. Ele descreve o estado atual,
 o diagnóstico, a arquitetura alvo, as convenções e o que falta para evoluir.
 
 **Status:** esqueleto inicial — servidor HTTP com rota de exemplo, sem camadas
-de domínio, aplicação ou persistência implementadas.
+de domínio, aplicação ou persistência implementadas. Banco de dados modelado
+(15 migrations em `migrations/`). Produto descrito em `funcionalidades.md`.
 
 ---
 
 ## 1. Resumo executivo
 
-A aplicação será uma **API REST de loja**, inicialmente um **monólito modular**
+A aplicação será a **API REST do e-vendas**, uma plataforma **multi-loja** (cada lojista da cidade tem a sua loja), inicialmente um **monólito modular**
 em Go. A arquitetura adotada é em camadas, com dependências apontando para
 dentro (em direção ao domínio), no estilo ports & adapters simplificado:
 
@@ -38,26 +39,20 @@ de loja pública passe a ser prioridade.
 
 | Elemento | Situação |
 |---|---|
-| `cmd/api/main.go` | Servidor HTTP funcional com uma rota `/` que responde texto |
-| `internal/config/` | Pasta vazia, não participa do build |
-| `internal/domain/` | Pasta vazia, não participa do build |
-| `internal/usecase/` | Pasta vazia, não participa do build |
-| `internal/repository/memory/` | Pasta vazia, não participa do build |
-| `internal/repository/postgres/` | Pasta vazia, não participa do build |
-| `internal/handler/` | Pasta vazia, não participa do build |
-| `internal/middleware/` | Pasta vazia, não participa do build |
-| `internal/router/` | Pasta vazia, não participa do build |
-| `migrations/` | Pasta vazia, sem migrações |
-| `.env` | Vazio e não carregado pela aplicação |
-| `go.mod` / `go.sum` | `chi` v5 declarado |
+| `cmd/api/main.go` | Servidor HTTP com uma rota `/` que responde texto |
+| `internal/*` | **Não existe no repositório.** O Git não guarda pasta vazia, então as pastas planejadas só aparecem quando receberem o primeiro arquivo `.go` |
+| `migrations/` | 15 migrations (`up`/`down`) do banco multi-loja, testadas em PostgreSQL 16 |
+| `go.mod` | Só tem `module` e `go`: **falta o `require` do `chi`** |
+| `go.sum` | **Não existe** |
+| `.gitignore` | Ignora `.env` |
+| `.env` / `.env.example` | `.env` não é versionado (correto); falta o `.env.example` |
+| `compose.yaml` | PostgreSQL 17 para desenvolvimento (porta 5433) |
 | Testes | Nenhum |
-| Git / CI | Projeto não é um repositório Git; sem pipeline |
-| README / docs | Criados junto com este documento |
+| CI | Nenhum |
+| Documentação | `funcionalidades.md` (produto), `docs/` (banco, migrations, arquitetura) |
 
-Conclusão: **a estrutura de pastas da arquitetura alvo já existe, mas ainda não
-há código nas camadas**; o único código é o servidor HTTP em `cmd/api`. Este
-documento define o comportamento esperado de cada camada antes de o código
-crescer.
+Conclusão: **o projeto ainda não compila** (falta declarar o `chi` no `go.mod`).
+O banco já está desenhado; o código Go ainda não existe além do `main.go`.
 
 ---
 
@@ -79,10 +74,13 @@ crescer.
 | `main.go` | `log.Fatal` no `ListenAndServe` | Encerra sem shutdown gracioso; requisições em andamento são cortadas |
 | `main.go` | Sem timeouts de leitura/escrita/idle | Vulnerável a conexões lentas (slowloris) e recursos presos |
 | `main.go` | Rota inline, sem composition root | Acoplamento e ausência de injeção de dependência |
-| `go.mod` | `chi` marcado como `// indirect` mesmo sendo importado direto | Metadado incorreto; `go mod tidy` corrige |
+| `go.mod` | Não tem o `require github.com/go-chi/chi/v5` e não existe `go.sum` | `go run` e `go build` falham; `go get github.com/go-chi/chi/v5` e `go mod tidy` corrigem |
 | `main.go` | Arquivo fora do `gofmt` | Inconsistência de estilo e ruído em diffs |
-| `.env` | Vazio, sem `.gitignore` e sem `.env.example` | Risco de commitar segredos; configuração não documentada |
-| Raiz | Sem `.gitignore`, Makefile, Dockerfile, CI ou testes | Falta de padronização e de verificação automatizada |
+| `.env` | `.gitignore` já protege o `.env`, mas falta o `.env.example` | Configuração não documentada para quem clona o projeto |
+| Raiz | Sem Makefile, Dockerfile, CI ou testes | Falta de padronização e de verificação automatizada |
+| Docs | Nome "Loja" e domínio genérico (produto, estoque, pagamento) enquanto o produto é o e-vendas multi-loja | Documentos contradiziam o `funcionalidades.md`; corrigido nesta revisão |
+| `docs/BANCO-DE-DADOS.md` | Descrevia o modelo antigo (fornecedores, estoque, pagamentos) | Banco real é multi-loja; substituído pelo modelo novo |
+| Caminhos nas docs | `/home/rodrigo/Www/loja` fixo | Só funciona na sua máquina; use caminho relativo |
 
 ---
 
@@ -291,28 +289,35 @@ estrutura base.
 
 ## 5. Modelo de domínio inicial
 
-Não modelar tudo de uma vez. A ordem sugerida é **Produto → Pedido →
-Cliente/Autenticação → Pagamento**.
+Não modelar tudo de uma vez. A ordem sugerida é **Usuário/Loja → Produto →
+Pedido**. O detalhe de cada campo está em `BANCO-DE-DADOS.md`; as regras de
+negócio estão em `funcionalidades.md`.
 
-### 5.1 Produto
+### 5.1 Loja e Produto
 
-| Campo | Regra |
-|---|---|
-| `ID` | Identificador opaco, gerado na criação |
-| `Name` | Obrigatório, até 120 caracteres, sem espaços nas pontas |
-| `Description` | Opcional, até 2000 caracteres |
-| `PriceCents` | Inteiro em centavos, nunca negativo |
-| `Stock` | Inteiro, nunca negativo |
-| `CreatedAt` / `UpdatedAt` | UTC, controlados pela aplicação |
+- Uma **loja** pertence a um ou mais usuários (lojista e funcionários) e nasce
+  com situação `pending`; só aparece na vitrine depois de aprovada
+  pelo administrador (`active`).
+- Todo **produto** pertence a **uma loja** (`store_id`). Nome obrigatório (até
+  120 caracteres), preço em centavos nunca negativo, estoque opcional (nulo =
+  loja não controla estoque).
+- Toda consulta e toda escrita de produto e pedido deve filtrar pela loja do
+  usuário logado. Esquecer o filtro é o erro mais perigoso de um sistema
+  multi-loja: uma loja enxergaria os dados da outra.
 
 ### 5.2 Pedido
 
-- Um pedido pertence a um cliente.
-- Possui itens com produto, quantidade e preço no momento da compra (snapshot).
-- Status inicial: `pending`. Transições previstas: `pending → paid → shipped →
-  delivered`, com `cancelled` permitido antes do envio.
-- A criação do pedido e a baixa de estoque devem ocorrer na **mesma transação**.
+- Um pedido é de **uma loja** e de um cliente (comprador sem conta).
+- Itens com nome e preço copiados no momento da compra (snapshot).
+- Situações: `pending → confirmed → preparing → ready → out_for_delivery →
+  delivered`. `out_for_delivery` só existe se for entrega. `cancelled` é
+  permitido antes de `delivered`. `delivered` e `cancelled` são finais.
+- Só a loja (e o administrador) muda a situação. Cada mudança grava uma linha
+  em `order_status_history`.
+- Criar o pedido e seus itens acontece em **uma transação**.
 - O total é calculado no servidor; nunca confiar no valor enviado pelo cliente.
+- O número do pedido (#0001) vem do banco; o cliente acompanha por
+  `tracking_code`.
 
 ### 5.3 Convenções de domínio
 
@@ -330,7 +335,9 @@ Cliente/Autenticação → Pagamento**.
 ### 6.1 Versionamento e recursos
 
 - Base: `/api/v1`.
-- Recursos iniciais: `/products`, `/orders`, `/customers`.
+- Recursos iniciais: `/auth`, `/stores`, `/products`, `/orders`. Rotas públicas
+  (vitrine e acompanhamento por `tracking_code`) ficam separadas das rotas do
+  painel, que exigem login.
 - Health checks fora do versionamento: `/healthz` e `/readyz`.
 
 ### 6.2 Endpoints previstos para produto
@@ -450,8 +457,9 @@ Itens a implementar conforme o escopo crescer:
 
 - **Autenticação:** JWT de acesso curto + refresh token, ou sessão com cookie
   `HttpOnly`; senha com `argon2id` ou `bcrypt`.
-- **Autorização:** papéis `customer` e `admin`; middleware de autorização por
-  rota.
+- **Autorização:** o comprador não tem conta. Papéis do painel: dono da loja
+  (`owner`), funcionário (`staff`) e administrador da plataforma
+  (`is_platform_admin`). O middleware confere também a **loja** do usuário.
 - **Rate limiting:** por IP e por usuário nas rotas públicas e de login.
 - **CORS:** lista explícita de origens em produção; nunca `*` com credenciais.
 - **Limite de corpo** e validação de `Content-Type`.
@@ -516,27 +524,28 @@ Regras:
 
 ### P0 — Fundação (antes de qualquer feature)
 
-1. Inicializar repositório Git com `.gitignore` e `.env.example`.
+1. Criar o `.env.example` (o repositório e o `.gitignore` já existem).
 2. Criar `cmd/api/main.go` como composition root.
 3. Implementar `internal/config` com validação e fail-fast.
 4. Configurar `http.Server` com timeouts e shutdown gracioso.
 5. Criar `internal/router` e middleware: request ID, log, recover, CORS,
    timeout.
 6. Adicionar `/healthz` e `/readyz`.
-7. Corrigir `go.mod` com `go mod tidy` e formatar com `gofmt`.
+7. Corrigir o `go.mod` (`go get github.com/go-chi/chi/v5` e `go mod tidy`) e
+   formatar com `gofmt`. **Sem isso o projeto não compila.**
 
 ### P1 — Primeiro recurso vertical
 
-1. Modelar `Product` no domínio com invariantes.
-2. Definir `ProductRepository` e implementação em memória.
-3. Implementar `ProductUseCase`.
-4. Implementar handlers HTTP de produto com contrato de erro e paginação.
+1. Modelar `User` e `Store` no domínio; cadastro e login do lojista.
+2. Definir os repositórios e a implementação em memória.
+3. Implementar os casos de uso (registrar lojista, criar loja).
+4. Implementar os handlers HTTP com contrato de erro.
 5. Escrever testes de domínio, caso de uso e handler.
 
 ### P2 — Persistência real
 
 1. Adicionar Postgres e `pgx`.
-2. Criar migrações de produto.
+2. Aplicar as migrations de `migrations/` (já escritas).
 3. Implementar `repository/postgres`.
 4. Testes de integração com banco real.
 5. Implementar `/readyz` verificando o banco.
@@ -552,8 +561,8 @@ Regras:
 
 ### P3 — Pedidos e autenticação
 
-1. Modelar `Customer`, `Order`, `OrderItem` e máquina de estados.
-2. Criar pedido com transação e baixa de estoque.
+1. Modelar `Product`, `Order`, `OrderItem` e a máquina de estados do pedido.
+2. Criar pedido com transação (e baixa de estoque, se a loja controlar).
 3. Autenticação e autorização.
 4. Rate limiting nas rotas sensíveis.
 
