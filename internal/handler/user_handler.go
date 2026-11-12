@@ -12,13 +12,13 @@ type userHandler struct {
 	userCase *usecase.UserCase
 }
 
-func newUserHandler(usercase *usecase.UserCase) userHandler {
+func NewUserHandler(usercase *usecase.UserCase) userHandler {
 	return userHandler{
 		userCase: usercase,
 	}
 }
 
-func (us *userHandler) Registe(w http.ResponseWriter, r *http.Request) {
+func (us *userHandler) Register(w http.ResponseWriter, r *http.Request) {
 	var req RegisterRequest
 
 	err := json.NewDecoder(r.Body).Decode(&req)

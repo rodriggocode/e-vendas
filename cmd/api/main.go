@@ -1,19 +1,37 @@
 package main
 
 import (
+	"context"
 	"e-vendas/internal/config"
 	"e-vendas/internal/router"
 	"fmt"
 	"log"
 	"net/http"
+
+	"e-vendas/internal/repository/postgres"
 )
 
 func main() {
 
-	config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	r := router.Router()
+	ctx := context.Background()
 
-	fmt.Println("Server run: http://localhost:3000/")
-	log.Fatal(http.ListenAndServe(":3000", r))
+	db, err := postgres.Open(ctx, cfg.DatabaseURL)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer db.Close()
+
+	r := router.Router(db)
+
+	fmt.Printf("Server run: http://localhost:%s/\n", cfg.Port)
+	log.Fatal(http.ListenAndServe(
+		fmt.Sprintf(":%s", cfg.Port),
+		r,
+	))
 }

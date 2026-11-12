@@ -1,2 +1,11 @@
 
-GET http://localhost:3000
+GET http://localhost:9090
+
+POST http://localhost:9090/api/v1/users
+Content-Type: application/json
+
+{
+  "name": "Pedro",
+  "email": "pedro@example.com",
+  "password": "123456"
+}
