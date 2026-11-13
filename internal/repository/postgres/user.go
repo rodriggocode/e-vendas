@@ -3,8 +3,11 @@ package postgres
 import (
 	"context"
 	"e-vendas/internal/domain"
+	"errors"
 
 	"fmt"
+
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -25,6 +28,10 @@ func (repo *UserRepository) CreateUser(ctx context.Context, user domain.User) (i
 
 	err := repo.db.QueryRow(ctx, sql, user.Name, user.Email, user.PasswordHash).Scan(&id)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return 0, domain.ErrConflict
+		}
 		return 0, fmt.Errorf("criando usuário: %w", err)
 	}
 

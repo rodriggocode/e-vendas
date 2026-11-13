@@ -5,6 +5,8 @@ import (
 	"e-vendas/internal/responses"
 	"e-vendas/internal/usecase"
 	"encoding/json"
+	"errors"
+	"log"
 	"net/http"
 )
 
@@ -24,22 +26,28 @@ func (us *userHandler) Register(w http.ResponseWriter, r *http.Request) {
 	err := json.NewDecoder(r.Body).Decode(&req)
 
 	if err != nil {
-		responses.ResponseError(w, http.StatusUnprocessableEntity, err)
+		responses.ResponseError(w, http.StatusBadRequest, err)
 		return
 	}
 
-	var user domain.User
-	user.Name = req.Name
-	user.Email = req.Email
-	user.PasswordHash = req.Password
-
-	inserUser, err := us.userCase.CreateUser(r.Context(), user)
+	insertedUser, err := us.userCase.CreateUser(r.Context(), req.Name, req.Email, req.Password)
 
 	if err != nil {
-		responses.ResponseError(w, http.StatusInternalServerError, err)
+		if errors.Is(err, domain.ErrConflict) {
+			responses.ResponseError(w, http.StatusConflict, errors.New("e-mail já cadastrado"))
+			return
+		}
+		log.Println(err)
+		responses.ResponseError(w, http.StatusInternalServerError, errors.New("erro interno"))
 		return
 	}
 
-	responses.JSON(w, http.StatusCreated, inserUser)
+	resp := RegisterResponse{
+		ID:    insertedUser.ID,
+		Name:  insertedUser.Name,
+		Email: insertedUser.Email,
+	}
+
+	responses.JSON(w, http.StatusCreated, resp)
 
 }

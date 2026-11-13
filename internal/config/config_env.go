@@ -18,15 +18,15 @@ type Config struct {
 
 func Load() (*Config, error) {
 	if err := godotenv.Load(); err != nil {
-		if !errors.Is(err, fs.ErrExist) {
-			return nil, fmt.Errorf("Lendo .env: %w", err)
+		if !errors.Is(err, fs.ErrNotExist) {
+			return nil, fmt.Errorf("lendo .env: %w", err)
 		}
 
 		log.Println("Sem .env, usando variaveis de ambiente")
 	}
 
-	dns := os.Getenv("DATABASE_URL")
-	if dns == "" {
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
 		return nil, fmt.Errorf("DATABASE_URL nao definida")
 	}
 
@@ -37,11 +37,11 @@ func Load() (*Config, error) {
 
 	n, err := strconv.Atoi(port)
 	if err != nil || n < 1 || n > 65535 {
-		return nil, fmt.Errorf("PORT invalide: %q", port)
+		return nil, fmt.Errorf("PORT invalida: %q", port)
 	}
 
 	return &Config{
-		DatabaseURL: dns,
+		DatabaseURL: dsn,
 		Port:        port,
 	}, nil
 }
