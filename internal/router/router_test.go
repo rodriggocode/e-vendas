@@ -7,12 +7,12 @@ import (
 )
 
 // Router(nil) é seguro aqui: estas rotas não encostam no banco.
-func TestRouter_RaizRetorna200(t *testing.T) {
+func TestRouter_RaizNaoExisteRetorna404(t *testing.T) {
 	w := httptest.NewRecorder()
 	Router(nil).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/", nil))
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("status = %d, esperado 200", w.Code)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, esperado 404; corpo: %s", w.Code, w.Body.String())
 	}
 }
 
@@ -29,7 +29,6 @@ func TestRouter_HealthzRetorna200JSON(t *testing.T) {
 	}
 }
 
-// Regressão: a rota "GET /" é um padrão de subárvore e engole qualquer GET.
 func TestRouter_RotaDesconhecidaRetorna404(t *testing.T) {
 	w := httptest.NewRecorder()
 	Router(nil).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/rota/qualquer", nil))
@@ -41,7 +40,7 @@ func TestRouter_RotaDesconhecidaRetorna404(t *testing.T) {
 
 func TestRouter_MetodoNaoPermitidoRetorna405(t *testing.T) {
 	w := httptest.NewRecorder()
-	Router(nil).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/users", nil))
+	Router(nil).ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/auth/register", nil))
 
 	if w.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("status = %d, esperado 405; corpo: %s", w.Code, w.Body.String())

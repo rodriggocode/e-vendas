@@ -33,6 +33,12 @@ func (us *userHandler) Register(w http.ResponseWriter, r *http.Request) {
 	insertedUser, err := us.userCase.CreateUser(r.Context(), req.Name, req.Email, req.Password)
 
 	if err != nil {
+		var vErr *domain.ValidationError
+
+		if errors.As(err, &vErr) {
+			responses.ResponseError(w, http.StatusUnprocessableEntity, errors.New(vErr.Message))
+			return
+		}
 		if errors.Is(err, domain.ErrConflict) {
 			responses.ResponseError(w, http.StatusConflict, errors.New("e-mail já cadastrado"))
 			return

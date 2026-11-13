@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"testing"
@@ -77,7 +78,8 @@ func TestCreateUser_InsereERetornaID(t *testing.T) {
 	}
 }
 
-func TestCreateUser_EmailDuplicadoRetornaErro(t *testing.T) {
+// Regressão: violação de unique (23505) deve virar domain.ErrConflict.
+func TestCreateUser_EmailDuplicadoRetornaConflito(t *testing.T) {
 	pool := novaPoolDeTeste(t)
 	repo := NewUserRepository(pool)
 
@@ -87,8 +89,8 @@ func TestCreateUser_EmailDuplicadoRetornaErro(t *testing.T) {
 	if _, err := repo.CreateUser(context.Background(), domain.User{Name: "A", Email: email, PasswordHash: "x"}); err != nil {
 		t.Fatalf("primeira inserção: %v", err)
 	}
-	if _, err := repo.CreateUser(context.Background(), domain.User{Name: "B", Email: email, PasswordHash: "x"}); err == nil {
-		t.Fatal("segunda inserção com o mesmo email deveria falhar")
+	if _, err := repo.CreateUser(context.Background(), domain.User{Name: "B", Email: email, PasswordHash: "x"}); !errors.Is(err, domain.ErrConflict) {
+		t.Fatalf("erro = %v, esperado domain.ErrConflict", err)
 	}
 }
 

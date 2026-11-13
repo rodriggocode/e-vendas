@@ -5,6 +5,7 @@ import (
 	"e-vendas/internal/domain"
 	"e-vendas/internal/security"
 	"net/mail"
+	"strings"
 )
 
 type UserCase struct {
@@ -19,6 +20,14 @@ func NewUserUsecase(repo domain.UserRepository) *UserCase {
 
 func (us *UserCase) CreateUser(ctx context.Context, name, email, password string) (domain.User, error) {
 
+	name = strings.TrimSpace(name)
+	email = strings.TrimSpace(email)
+
+	err := validateRegister(name, email, password)
+	if err != nil {
+		return domain.User{}, err
+	}
+
 	hash, err := security.HashPassword(password)
 	if err != nil {
 		return domain.User{}, err
@@ -31,6 +40,7 @@ func (us *UserCase) CreateUser(ctx context.Context, name, email, password string
 	}
 
 	userID, err := us.repository.CreateUser(ctx, user)
+
 	if err != nil {
 		return domain.User{}, err
 	}

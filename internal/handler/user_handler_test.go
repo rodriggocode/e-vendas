@@ -13,6 +13,8 @@ import (
 	"e-vendas/internal/usecase"
 )
 
+const rotaRegister = "/api/v1/auth/register"
+
 type fakeUserRepository struct {
 	created domain.User
 	id      int
@@ -32,13 +34,13 @@ func novoHandlerDeTeste(t *testing.T, repo *fakeUserRepository) http.Handler {
 	h := NewUserHandler(uc)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /api/v1/users", h.Register)
+	mux.HandleFunc("POST "+rotaRegister, h.Register)
 	return mux
 }
 
 func fazerRequest(t *testing.T, h http.Handler, method, corpo string) *httptest.ResponseRecorder {
 	t.Helper()
-	req := httptest.NewRequest(method, "/api/v1/users", strings.NewReader(corpo))
+	req := httptest.NewRequest(method, rotaRegister, strings.NewReader(corpo))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
@@ -51,7 +53,7 @@ func TestRegister_RegistroValidoRetornaDTO(t *testing.T) {
 	repo := &fakeUserRepository{id: 7}
 	h := novoHandlerDeTeste(t, repo)
 
-	w := fazerRequest(t, h, http.MethodPost, `{"name":"João","email":"joao@example.com","password":"senha123"}`)
+	w := fazerRequest(t, h, http.MethodPost, `{"name":"João","email":"joao@example.com","password":"senha12345"}`)
 
 	if w.Code != http.StatusCreated {
 		t.Fatalf("status = %d, esperado 201; corpo: %s", w.Code, w.Body.String())
@@ -94,7 +96,7 @@ func TestRegister_EnviaDadosParaUsecase(t *testing.T) {
 	repo := &fakeUserRepository{id: 1}
 	h := novoHandlerDeTeste(t, repo)
 
-	_ = fazerRequest(t, h, http.MethodPost, `{"name":"João","email":"joao@example.com","password":"senha123"}`)
+	_ = fazerRequest(t, h, http.MethodPost, `{"name":"João","email":"joao@example.com","password":"senha12345"}`)
 
 	if !repo.called {
 		t.Fatal("repositório não foi chamado")
@@ -102,7 +104,7 @@ func TestRegister_EnviaDadosParaUsecase(t *testing.T) {
 	if repo.created.Name != "João" || repo.created.Email != "joao@example.com" {
 		t.Errorf("dados enviados = %+v", repo.created)
 	}
-	if repo.created.PasswordHash == "senha123" {
+	if repo.created.PasswordHash == "senha12345" {
 		t.Error("senha chegou ao repositório em texto plano")
 	}
 }
@@ -136,11 +138,11 @@ func TestRegister_CamposObrigatoriosRetornam422(t *testing.T) {
 		nome  string
 		corpo string
 	}{
-		{"sem name", `{"email":"joao@example.com","password":"senha123"}`},
-		{"sem email", `{"name":"João","password":"senha123"}`},
+		{"sem name", `{"email":"joao@example.com","password":"senha12345"}`},
+		{"sem email", `{"name":"João","password":"senha12345"}`},
 		{"sem password", `{"name":"João","email":"joao@example.com"}`},
-		{"name vazio", `{"name":"","email":"joao@example.com","password":"senha123"}`},
-		{"email vazio", `{"name":"João","email":"","password":"senha123"}`},
+		{"name vazio", `{"name":"","email":"joao@example.com","password":"senha12345"}`},
+		{"email vazio", `{"name":"João","email":"","password":"senha12345"}`},
 		{"password vazio", `{"name":"João","email":"joao@example.com","password":""}`},
 	}
 
@@ -165,7 +167,7 @@ func TestRegister_EmailInvalidoRetorna422(t *testing.T) {
 	repo := &fakeUserRepository{id: 1}
 	h := novoHandlerDeTeste(t, repo)
 
-	w := fazerRequest(t, h, http.MethodPost, `{"name":"João","email":"não-e-mail","password":"senha123"}`)
+	w := fazerRequest(t, h, http.MethodPost, `{"name":"João","email":"não-e-mail","password":"senha12345"}`)
 
 	if w.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("status = %d, esperado 422; corpo: %s", w.Code, w.Body.String())
@@ -173,15 +175,26 @@ func TestRegister_EmailInvalidoRetorna422(t *testing.T) {
 }
 
 // Regressão: ARQUITETURA.md 6.3 — conflito (ex.: e-mail duplicado) → 409.
-// Exige erro de conflito tipado do domínio (ex.: domain.ErrConflict).
 func TestRegister_EmailDuplicadoRetorna409(t *testing.T) {
-	repo := &fakeUserRepository{err: errors.New("conflito: email já cadastrado")}
+	repo := &fakeUserRepository{err: domain.ErrConflict}
 	h := novoHandlerDeTeste(t, repo)
 
-	w := fazerRequest(t, h, http.MethodPost, `{"name":"João","email":"joao@example.com","password":"senha123"}`)
+	w := fazerRequest(t, h, http.MethodPost, `{"name":"João","email":"joao@example.com","password":"senha12345"}`)
 
 	if w.Code != http.StatusConflict {
 		t.Fatalf("status = %d, esperado 409; corpo: %s", w.Code, w.Body.String())
+	}
+}
+
+// Regressão: ValidationError do domínio deve virar 422, não 500.
+func TestRegister_ValidationErrorRetorna422(t *testing.T) {
+	repo := &fakeUserRepository{err: &domain.ValidationError{Message: "o nome é obrigatório"}}
+	h := novoHandlerDeTeste(t, repo)
+
+	w := fazerRequest(t, h, http.MethodPost, `{"name":"João","email":"joao@example.com","password":"senha12345"}`)
+
+	if w.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, esperado 422; corpo: %s", w.Code, w.Body.String())
 	}
 }
 
@@ -189,7 +202,7 @@ func TestRegister_ErroInternoRetorna500(t *testing.T) {
 	repo := &fakeUserRepository{err: errors.New("falha inesperada")}
 	h := novoHandlerDeTeste(t, repo)
 
-	w := fazerRequest(t, h, http.MethodPost, `{"name":"João","email":"joao@example.com","password":"senha123"}`)
+	w := fazerRequest(t, h, http.MethodPost, `{"name":"João","email":"joao@example.com","password":"senha12345"}`)
 
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, esperado 500; corpo: %s", w.Code, w.Body.String())
@@ -201,7 +214,7 @@ func TestRegister_ErroInternoNaoVazaDetalhe(t *testing.T) {
 	repo := &fakeUserRepository{err: errors.New("falha inesperada no banco")}
 	h := novoHandlerDeTeste(t, repo)
 
-	w := fazerRequest(t, h, http.MethodPost, `{"name":"João","email":"joao@example.com","password":"senha123"}`)
+	w := fazerRequest(t, h, http.MethodPost, `{"name":"João","email":"joao@example.com","password":"senha12345"}`)
 
 	if strings.Contains(w.Body.String(), "falha inesperada") {
 		t.Errorf("resposta vazou erro interno: %s", w.Body.String())
@@ -213,7 +226,7 @@ func TestRegister_CampoDesconhecidoRetorna400(t *testing.T) {
 	repo := &fakeUserRepository{id: 1}
 	h := novoHandlerDeTeste(t, repo)
 
-	w := fazerRequest(t, h, http.MethodPost, `{"name":"João","email":"joao@example.com","password":"senha123","id":999}`)
+	w := fazerRequest(t, h, http.MethodPost, `{"name":"João","email":"joao@example.com","password":"senha12345","id":999}`)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, esperado 400; corpo: %s", w.Code, w.Body.String())
@@ -224,7 +237,7 @@ func TestRegister_JSONComLixoRetorna400(t *testing.T) {
 	repo := &fakeUserRepository{id: 1}
 	h := novoHandlerDeTeste(t, repo)
 
-	w := fazerRequest(t, h, http.MethodPost, `{"name":"João","email":"joao@example.com","password":"senha123"}lixo`)
+	w := fazerRequest(t, h, http.MethodPost, `{"name":"João","email":"joao@example.com","password":"senha12345"}lixo`)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, esperado 400; corpo: %s", w.Code, w.Body.String())
