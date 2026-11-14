@@ -22,9 +22,14 @@ func (us *UserCase) CreateUser(ctx context.Context, name, email, phone, password
 
 	name = strings.TrimSpace(name)
 	email = strings.TrimSpace(email)
-	phone = strings.TrimSpace(phone)
+	originalPhone := strings.TrimSpace(phone)
+	phone = onlyDigits(originalPhone)
 
-	err := validateRegister(name, email, password)
+	if originalPhone != "" && phone == "" {
+		return domain.User{}, &domain.ValidationError{Message: "telefone inválido"}
+	}
+
+	err := validateRegister(name, email, phone, password)
 	if err != nil {
 		return domain.User{}, err
 	}
@@ -52,7 +57,7 @@ func (us *UserCase) CreateUser(ctx context.Context, name, email, phone, password
 	return user, nil
 }
 
-func validateRegister(name, email, password string) error {
+func validateRegister(name, email, phone, password string) error {
 	if name == "" {
 		return &domain.ValidationError{Message: "o nome é obrigatório"}
 	}
@@ -63,6 +68,10 @@ func validateRegister(name, email, password string) error {
 
 	if len(email) > 254 {
 		return &domain.ValidationError{Message: "e-mail muito longo"}
+	}
+
+	if phone != "" && (len(phone) < 10 || len(phone) > 13) {
+		return &domain.ValidationError{Message: "telefone inválido"}
 	}
 
 	addr, err := mail.ParseAddress(email)
@@ -79,4 +88,13 @@ func validateRegister(name, email, password string) error {
 	}
 
 	return nil
+}
+
+func onlyDigits(s string) string {
+	return strings.Map(func(r rune) rune {
+		if r >= '0' && r <= '9' {
+			return r
+		}
+		return -1
+	}, s)
 }

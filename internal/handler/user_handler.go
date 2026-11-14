@@ -65,6 +65,7 @@ func (us *userHandler) Register(w http.ResponseWriter, r *http.Request) {
 		ID:    insertedUser.ID,
 		Name:  insertedUser.Name,
 		Email: insertedUser.Email,
+		Phone: insertedUser.Phone,
 	}
 
 	responses.JSON(w, http.StatusCreated, resp)
