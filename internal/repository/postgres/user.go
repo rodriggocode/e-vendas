@@ -20,13 +20,13 @@ func NewUserRepository(db *pgxpool.Pool) *UserRepository {
 }
 
 func (repo *UserRepository) CreateUser(ctx context.Context, user domain.User) (int, error) {
-	sql := `INSERT INTO users(name, email,password_hash)
-		VALUES ($1,$2, $3) RETURNING id
+	sql := `INSERT INTO users(name, email,phone,password_hash)
+		VALUES ($1,$2, $3, $4) RETURNING id
 	`
 
 	var id int
 
-	err := repo.db.QueryRow(ctx, sql, user.Name, user.Email, user.PasswordHash).Scan(&id)
+	err := repo.db.QueryRow(ctx, sql, user.Name, user.Email, user.Phone, user.PasswordHash).Scan(&id)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {

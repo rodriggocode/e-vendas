@@ -6,6 +6,7 @@ import (
 	"e-vendas/internal/usecase"
 	"encoding/json"
 	"errors"
+	"io"
 	"log"
 	"net/http"
 )
@@ -21,30 +22,42 @@ func NewUserHandler(usercase *usecase.UserCase) userHandler {
 }
 
 func (us *userHandler) Register(w http.ResponseWriter, r *http.Request) {
+
 	var req RegisterRequest
 
-	err := json.NewDecoder(r.Body).Decode(&req)
+	decoder := json.NewDecoder(r.Body)
+
+	decoder.DisallowUnknownFields()
+
+	err := decoder.Decode(&req)
 
 	if err != nil {
-		responses.ResponseError(w, http.StatusBadRequest, err)
+		responses.ResponseError(w, http.StatusBadRequest, "invalid_json", "JSON invalido")
 		return
 	}
 
-	insertedUser, err := us.userCase.CreateUser(r.Context(), req.Name, req.Email, req.Password)
+	var trash any
+	erro := decoder.Decode(&trash)
+	if !errors.Is(erro, io.EOF) {
+		responses.ResponseError(w, http.StatusBadRequest, "invalid_json", "JSON invalido")
+		return
+	}
+
+	insertedUser, err := us.userCase.CreateUser(r.Context(), req.Name, req.Email, req.Phone, req.Password)
 
 	if err != nil {
 		var vErr *domain.ValidationError
 
 		if errors.As(err, &vErr) {
-			responses.ResponseError(w, http.StatusUnprocessableEntity, errors.New(vErr.Message))
+			responses.ResponseError(w, http.StatusUnprocessableEntity, "validation_error", vErr.Message)
 			return
 		}
 		if errors.Is(err, domain.ErrConflict) {
-			responses.ResponseError(w, http.StatusConflict, errors.New("e-mail já cadastrado"))
+			responses.ResponseError(w, http.StatusConflict, "conflict", "e-mail já cadastrado")
 			return
 		}
 		log.Println(err)
-		responses.ResponseError(w, http.StatusInternalServerError, errors.New("erro interno"))
+		responses.ResponseError(w, http.StatusInternalServerError, "internal_error", "erro interno")
 		return
 	}
 

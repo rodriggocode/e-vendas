@@ -3,9 +3,11 @@ package router
 import (
 	"e-vendas/internal/handler"
 	"e-vendas/internal/repository/postgres"
+	"e-vendas/internal/responses"
 	"e-vendas/internal/usecase"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"net/http"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func Router(db *pgxpool.Pool) http.Handler {
@@ -16,6 +18,13 @@ func Router(db *pgxpool.Pool) http.Handler {
 	userHandler := handler.NewUserHandler(userUsecase)
 
 	r.HandleFunc("POST /api/v1/auth/register", userHandler.Register)
+	r.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
+		responses.JSON(w, http.StatusOK, struct {
+			Status string `json:"status"`
+		}{
+			Status: "ok",
+		})
+	})
 
 	return r
 }

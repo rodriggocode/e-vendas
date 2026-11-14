@@ -2,7 +2,6 @@ package responses
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -47,7 +46,7 @@ func TestJSON_DataNuloEscreveApenasStatus(t *testing.T) {
 func TestResponseError_SegueEnvelopeDocumentado(t *testing.T) {
 	w := httptest.NewRecorder()
 
-	ResponseError(w, http.StatusBadRequest, errors.New("nome é obrigatório"))
+	ResponseError(w, http.StatusBadRequest, "validation_error", "nome é obrigatório")
 
 	var body map[string]any
 	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {

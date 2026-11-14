@@ -18,10 +18,11 @@ func NewUserUsecase(repo domain.UserRepository) *UserCase {
 	}
 }
 
-func (us *UserCase) CreateUser(ctx context.Context, name, email, password string) (domain.User, error) {
+func (us *UserCase) CreateUser(ctx context.Context, name, email, phone, password string) (domain.User, error) {
 
 	name = strings.TrimSpace(name)
 	email = strings.TrimSpace(email)
+	phone = strings.TrimSpace(phone)
 
 	err := validateRegister(name, email, password)
 	if err != nil {
@@ -36,6 +37,7 @@ func (us *UserCase) CreateUser(ctx context.Context, name, email, password string
 	user := domain.User{
 		Name:         name,
 		Email:        email,
+		Phone:        phone,
 		PasswordHash: string(hash),
 	}
 
