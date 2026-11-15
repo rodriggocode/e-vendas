@@ -47,13 +47,13 @@ func fazerRequest(t *testing.T, h http.Handler, method, corpo string) *httptest.
 	return w
 }
 
-// Regressão: dto.go define o contrato de resposta (id, name, email).
+// Regressão: dto.go define o contrato de resposta (id, name, email, phone).
 // A entidade não pode vazar campos internos.
 func TestRegister_RegistroValidoRetornaDTO(t *testing.T) {
 	repo := &fakeUserRepository{id: 7}
 	h := novoHandlerDeTeste(t, repo)
 
-	w := fazerRequest(t, h, http.MethodPost, `{"name":"João","email":"joao@example.com","password":"senha12345"}`)
+	w := fazerRequest(t, h, http.MethodPost, `{"name":"João","email":"joao@example.com","phone":"(11) 99999-8888","password":"senha12345"}`)
 
 	if w.Code != http.StatusCreated {
 		t.Fatalf("status = %d, esperado 201; corpo: %s", w.Code, w.Body.String())
@@ -66,7 +66,7 @@ func TestRegister_RegistroValidoRetornaDTO(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &dto); err != nil {
 		t.Fatalf("corpo não é JSON válido: %v", err)
 	}
-	if dto.ID != 7 || dto.Name != "João" || dto.Email != "joao@example.com" {
+	if dto.ID != 7 || dto.Name != "João" || dto.Email != "joao@example.com" || dto.Phone != "11999998888" {
 		t.Errorf("DTO = %+v", dto)
 	}
 
@@ -78,6 +78,25 @@ func TestRegister_RegistroValidoRetornaDTO(t *testing.T) {
 		if _, ok := body[campo]; ok {
 			t.Errorf("resposta expôs campo interno %q: %s", campo, w.Body.String())
 		}
+	}
+}
+
+func TestRegister_TelefoneOpcional(t *testing.T) {
+	repo := &fakeUserRepository{id: 1}
+	h := novoHandlerDeTeste(t, repo)
+
+	w := fazerRequest(t, h, http.MethodPost, `{"name":"João","email":"joao@example.com","password":"senha12345"}`)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("status = %d, esperado 201; corpo: %s", w.Code, w.Body.String())
+	}
+
+	var dto RegisterResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &dto); err != nil {
+		t.Fatalf("corpo não é JSON válido: %v", err)
+	}
+	if dto.Phone != "" {
+		t.Errorf("Phone = %q, esperado vazio", dto.Phone)
 	}
 }
 
@@ -96,13 +115,16 @@ func TestRegister_EnviaDadosParaUsecase(t *testing.T) {
 	repo := &fakeUserRepository{id: 1}
 	h := novoHandlerDeTeste(t, repo)
 
-	_ = fazerRequest(t, h, http.MethodPost, `{"name":"João","email":"joao@example.com","password":"senha12345"}`)
+	_ = fazerRequest(t, h, http.MethodPost, `{"name":"João","email":"joao@example.com","phone":"(11) 99999-8888","password":"senha12345"}`)
 
 	if !repo.called {
 		t.Fatal("repositório não foi chamado")
 	}
 	if repo.created.Name != "João" || repo.created.Email != "joao@example.com" {
 		t.Errorf("dados enviados = %+v", repo.created)
+	}
+	if repo.created.Phone != "11999998888" {
+		t.Errorf("Phone = %q, esperado 11999998888 (normalizado)", repo.created.Phone)
 	}
 	if repo.created.PasswordHash == "senha12345" {
 		t.Error("senha chegou ao repositório em texto plano")
@@ -171,6 +193,22 @@ func TestRegister_EmailInvalidoRetorna422(t *testing.T) {
 
 	if w.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("status = %d, esperado 422; corpo: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestRegister_TelefoneInvalidoRetorna422(t *testing.T) {
+	for _, telefone := range []string{"123", "abc-def"} {
+		t.Run(telefone, func(t *testing.T) {
+			repo := &fakeUserRepository{id: 1}
+			h := novoHandlerDeTeste(t, repo)
+
+			corpo := `{"name":"João","email":"joao@example.com","phone":"` + telefone + `","password":"senha12345"}`
+			w := fazerRequest(t, h, http.MethodPost, corpo)
+
+			if w.Code != http.StatusUnprocessableEntity {
+				t.Fatalf("status = %d, esperado 422; corpo: %s", w.Code, w.Body.String())
+			}
+		})
 	}
 }
 

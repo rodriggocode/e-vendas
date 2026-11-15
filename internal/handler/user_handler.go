@@ -23,6 +23,14 @@ func NewUserHandler(usercase *usecase.UserCase) userHandler {
 
 func (us *userHandler) Register(w http.ResponseWriter, r *http.Request) {
 
+	if r.Header.Get("Content-type") != "application/json" {
+
+		responses.ResponseError(w, http.StatusUnsupportedMediaType, "unsupported_media_type", "Content-Type deve ser application/json")
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
 	var req RegisterRequest
 
 	decoder := json.NewDecoder(r.Body)
@@ -32,6 +40,11 @@ func (us *userHandler) Register(w http.ResponseWriter, r *http.Request) {
 	err := decoder.Decode(&req)
 
 	if err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			responses.ResponseError(w, http.StatusRequestEntityTooLarge, "request_too_large", "corpo da requisição excede o limite permitido")
+			return
+		}
 		responses.ResponseError(w, http.StatusBadRequest, "invalid_json", "JSON invalido")
 		return
 	}

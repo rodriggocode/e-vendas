@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -24,9 +25,15 @@ func (repo *UserRepository) CreateUser(ctx context.Context, user domain.User) (i
 		VALUES ($1,$2, $3, $4) RETURNING id
 	`
 
+	var phone pgtype.Text
+	if user.Phone != "" {
+		phone.Valid = true
+		phone.String = user.Phone
+	}
+
 	var id int
 
-	err := repo.db.QueryRow(ctx, sql, user.Name, user.Email, user.Phone, user.PasswordHash).Scan(&id)
+	err := repo.db.QueryRow(ctx, sql, user.Name, user.Email, phone, user.PasswordHash).Scan(&id)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {

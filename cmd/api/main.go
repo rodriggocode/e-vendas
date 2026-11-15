@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"e-vendas/internal/repository/postgres"
 )
@@ -29,9 +30,15 @@ func main() {
 
 	r := router.Router(db)
 
+	srv := &http.Server{
+		Handler:           r,
+		Addr:              ":" + cfg.Port,
+		WriteTimeout:      15 * time.Second,
+		ReadTimeout:       5 * time.Second,
+		IdleTimeout:       30 * time.Second,
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+
 	fmt.Printf("Server run: http://localhost:%s/\n", cfg.Port)
-	log.Fatal(http.ListenAndServe(
-		fmt.Sprintf(":%s", cfg.Port),
-		r,
-	))
+	log.Fatal(srv.ListenAndServe())
 }

@@ -54,7 +54,7 @@ func TestCreateUser_InsereERetornaID(t *testing.T) {
 	email := emailUnico(t)
 	t.Cleanup(func() { limparUsuario(t, pool, email) })
 
-	user := domain.User{Name: "QA Integração", Email: email, PasswordHash: "hash-fake"}
+	user := domain.User{Name: "QA Integração", Email: email, Phone: "11999998888", PasswordHash: "hash-fake"}
 	id, err := repo.CreateUser(context.Background(), user)
 	if err != nil {
 		t.Fatalf("CreateUser: %v", err)
@@ -63,15 +63,18 @@ func TestCreateUser_InsereERetornaID(t *testing.T) {
 		t.Fatalf("ID = %d, esperado > 0", id)
 	}
 
-	var name, emailDB, hashDB string
+	var name, emailDB, phoneDB, hashDB string
 	err = pool.QueryRow(context.Background(),
-		"SELECT name, email, password_hash FROM users WHERE id = $1", id).
-		Scan(&name, &emailDB, &hashDB)
+		"SELECT name, email, phone, password_hash FROM users WHERE id = $1", id).
+		Scan(&name, &emailDB, &phoneDB, &hashDB)
 	if err != nil {
 		t.Fatalf("lendo usuário inserido: %v", err)
 	}
 	if name != user.Name || emailDB != email {
 		t.Errorf("registro = (%q, %q), esperado (%q, %q)", name, emailDB, user.Name, email)
+	}
+	if phoneDB != user.Phone {
+		t.Errorf("phone = %q, esperado %q", phoneDB, user.Phone)
 	}
 	if hashDB != "hash-fake" {
 		t.Errorf("password_hash = %q; o repositório deve gravar o hash que recebe", hashDB)
@@ -131,7 +134,7 @@ func TestCreateUser_ContextoCanceladoRetornaErro(t *testing.T) {
 func TestSchema_UsersTemColunasEsperadas(t *testing.T) {
 	pool := novaPoolDeTeste(t)
 
-	colunas := []string{"id", "name", "email", "password_hash", "active", "is_platform_admin", "email_verified_at", "created_at", "updated_at"}
+	colunas := []string{"id", "name", "email", "phone", "password_hash", "active", "is_platform_admin", "email_verified_at", "created_at", "updated_at"}
 	for _, coluna := range colunas {
 		var existe bool
 		err := pool.QueryRow(context.Background(),

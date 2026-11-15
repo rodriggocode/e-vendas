@@ -23,7 +23,7 @@ func TestUser_JSONNaoExpoePasswordHash(t *testing.T) {
 }
 
 func TestUser_JSONContemCamposDoContrato(t *testing.T) {
-	u := User{ID: 1, Name: "João", Email: "joao@example.com", Active: true}
+	u := User{ID: 1, Name: "João", Email: "joao@example.com", Phone: "11999998888", Active: true}
 
 	b, err := json.Marshal(u)
 	if err != nil {
@@ -34,7 +34,7 @@ func TestUser_JSONContemCamposDoContrato(t *testing.T) {
 	if err := json.Unmarshal(b, &body); err != nil {
 		t.Fatalf("Unmarshal: %v", err)
 	}
-	for _, campo := range []string{"id", "name", "email", "active", "is_platform_admin", "email_verified_at", "created_at", "updated_at"} {
+	for _, campo := range []string{"id", "name", "email", "phone", "active", "is_platform_admin", "email_verified_at", "created_at", "updated_at"} {
 		if _, ok := body[campo]; !ok {
 			t.Errorf("JSON sem o campo %q: %s", campo, b)
 		}
