@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: loja
+          POSTGRES_PASSWORD: loja
+          POSTGRES_DB: loja
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U loja -d loja"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://loja:loja@localhost:5432/loja?sslmode=disable
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Aplica migrations
+        run: |
+          for f in migrations/*.up.sql; do
+            echo "aplicando $f"
+            psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$f"
+          done
+
+      - name: gofmt
+        run: |
+          pendencias=$(gofmt -l .)
+          if [ -n "$pendencias" ]; then
+            echo "arquivos fora do padrao:"; echo "$pendencias"; exit 1
+          fi
+
+      - name: vet
+        run: go vet ./...
+
+      - name: test
+        run: go test ./... -count=1
+
+      - name: vulncheck
+        uses: golang/govulncheck-action@v1
+        with:
+          go-version-file: go.mod
