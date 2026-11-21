@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"log"
+	"mime"
 	"net/http"
 )
 
@@ -23,8 +24,8 @@ func NewUserHandler(usercase *usecase.UserCase) userHandler {
 
 func (us *userHandler) Register(w http.ResponseWriter, r *http.Request) {
 
-	if r.Header.Get("Content-type") != "application/json" {
-
+	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil || mediaType != "application/json" {
 		responses.ResponseError(w, http.StatusUnsupportedMediaType, "unsupported_media_type", "Content-Type deve ser application/json")
 		return
 	}
@@ -37,7 +38,7 @@ func (us *userHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	decoder.DisallowUnknownFields()
 
-	err := decoder.Decode(&req)
+	err = decoder.Decode(&req)
 
 	if err != nil {
 		var maxBytesErr *http.MaxBytesError

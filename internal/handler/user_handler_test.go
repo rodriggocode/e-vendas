@@ -47,6 +47,17 @@ func fazerRequest(t *testing.T, h http.Handler, method, corpo string) *httptest.
 	return w
 }
 
+func fazerRequestComContentType(t *testing.T, h http.Handler, method, contentType, corpo string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(method, rotaRegister, strings.NewReader(corpo))
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
+	}
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	return w
+}
+
 // Regressão: dto.go define o contrato de resposta (id, name, email, phone).
 // A entidade não pode vazar campos internos.
 func TestRegister_RegistroValidoRetornaDTO(t *testing.T) {
@@ -302,5 +313,53 @@ func TestRegister_MetodoErradoRetorna405(t *testing.T) {
 
 	if w.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("status = %d, esperado 405; corpo: %s", w.Code, w.Body.String())
+	}
+}
+
+// Regressão: ARQUITETURA.md 6.6 — validação de Content-Type.
+func TestRegister_ContentTypeErradoRetorna415(t *testing.T) {
+	repo := &fakeUserRepository{id: 1}
+	h := novoHandlerDeTeste(t, repo)
+
+	w := fazerRequestComContentType(t, h, http.MethodPost, "text/plain", `{"name":"João","email":"joao@example.com","password":"senha12345"}`)
+
+	if w.Code != http.StatusUnsupportedMediaType {
+		t.Fatalf("status = %d, esperado 415; corpo: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestRegister_ContentTypeAusenteRetorna415(t *testing.T) {
+	repo := &fakeUserRepository{id: 1}
+	h := novoHandlerDeTeste(t, repo)
+
+	w := fazerRequestComContentType(t, h, http.MethodPost, "", `{"name":"João","email":"joao@example.com","password":"senha12345"}`)
+
+	if w.Code != http.StatusUnsupportedMediaType {
+		t.Fatalf("status = %d, esperado 415; corpo: %s", w.Code, w.Body.String())
+	}
+}
+
+// Regressão: "application/json; charset=utf-8" é um Content-Type válido (RFC 9110).
+func TestRegister_AceitaContentTypeComCharset(t *testing.T) {
+	repo := &fakeUserRepository{id: 1}
+	h := novoHandlerDeTeste(t, repo)
+
+	w := fazerRequestComContentType(t, h, http.MethodPost, "application/json; charset=utf-8", `{"name":"João","email":"joao@example.com","password":"senha12345"}`)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("status = %d, esperado 201; corpo: %s", w.Code, w.Body.String())
+	}
+}
+
+// Regressão: ARQUITETURA.md 6.6 — limite de corpo.
+func TestRegister_CorpoGrandeRetorna413(t *testing.T) {
+	repo := &fakeUserRepository{id: 1}
+	h := novoHandlerDeTeste(t, repo)
+
+	corpo := `{"name":"` + strings.Repeat("a", 1<<20) + `","email":"joao@example.com","password":"senha12345"}`
+	w := fazerRequest(t, h, http.MethodPost, corpo)
+
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status = %d, esperado 413; corpo: %s", w.Code, w.Body.String())
 	}
 }
