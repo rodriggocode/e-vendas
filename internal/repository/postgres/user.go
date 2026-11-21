@@ -36,8 +36,14 @@ func (repo *UserRepository) CreateUser(ctx context.Context, user domain.User) (i
 	err := repo.db.QueryRow(ctx, sql, user.Name, user.Email, phone, user.PasswordHash).Scan(&id)
 	if err != nil {
 		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return 0, domain.ErrConflict
+		if errors.As(err, &pgErr) {
+			switch pgErr.Code {
+			case "23505":
+				return 0, domain.ErrConflict
+			case "22001":
+				// valor excede o tamanho da coluna: erro de entrada, não interno
+				return 0, &domain.ValidationError{Message: "um campo excede o tamanho máximo permitido"}
+			}
 		}
 		return 0, fmt.Errorf("criando usuário: %w", err)
 	}

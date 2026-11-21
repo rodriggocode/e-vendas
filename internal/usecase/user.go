@@ -6,7 +6,12 @@ import (
 	"e-vendas/internal/security"
 	"net/mail"
 	"strings"
+	"unicode/utf8"
 )
+
+// nameMaxLength acompanha o padrão de produto (ARQUITETURA.md 5.1) e fica
+// abaixo do limite físico da coluna users.name (VARCHAR(255)).
+const nameMaxLength = 120
 
 type UserCase struct {
 	repository domain.UserRepository
@@ -60,6 +65,10 @@ func (us *UserCase) CreateUser(ctx context.Context, name, email, phone, password
 func validateRegister(name, email, phone, password string) error {
 	if name == "" {
 		return &domain.ValidationError{Message: "o nome é obrigatório"}
+	}
+
+	if utf8.RuneCountInString(name) > nameMaxLength {
+		return &domain.ValidationError{Message: "o nome deve ter no máximo 120 caracteres"}
 	}
 
 	if email == "" {

@@ -363,3 +363,19 @@ func TestRegister_CorpoGrandeRetorna413(t *testing.T) {
 		t.Fatalf("status = %d, esperado 413; corpo: %s", w.Code, w.Body.String())
 	}
 }
+
+// Regressão QA-001: nome acima do teto deve devolver 422, não 500.
+func TestRegister_NomeLongoRetorna422(t *testing.T) {
+	repo := &fakeUserRepository{id: 1}
+	h := novoHandlerDeTeste(t, repo)
+
+	corpo := `{"name":"` + strings.Repeat("a", 121) + `","email":"qa.nome.longo@example.com","password":"senha12345"}`
+	w := fazerRequest(t, h, http.MethodPost, corpo)
+
+	if w.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, esperado 422; corpo: %s", w.Code, w.Body.String())
+	}
+	if repo.called {
+		t.Error("repositório não deveria ser chamado com nome inválido")
+	}
+}

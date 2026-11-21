@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -148,5 +149,31 @@ func TestSchema_UsersTemColunasEsperadas(t *testing.T) {
 		if !existe {
 			t.Errorf("coluna users.%s não existe", coluna)
 		}
+	}
+}
+
+// Regressão QA-001: valor acima do tamanho da coluna (22001) deve virar
+// ValidationError, não erro interno.
+func TestCreateUser_NomeAcimaDoLimiteDaColunaRetornaValidacao(t *testing.T) {
+	pool := novaPoolDeTeste(t)
+	repo := NewUserRepository(pool)
+
+	email := emailUnico(t)
+	user := domain.User{Name: strings.Repeat("a", 256), Email: email, PasswordHash: "x"}
+	if _, err := repo.CreateUser(context.Background(), user); err == nil {
+		t.Fatal("CreateUser aceitou nome com 256 caracteres")
+	} else {
+		var validation *domain.ValidationError
+		if !errors.As(err, &validation) {
+			t.Fatalf("erro = %v, esperado *domain.ValidationError", err)
+		}
+	}
+
+	var existentes int
+	if err := pool.QueryRow(context.Background(), "SELECT count(*) FROM users WHERE email = $1", email).Scan(&existentes); err != nil {
+		t.Fatalf("contando registros: %v", err)
+	}
+	if existentes != 0 {
+		t.Errorf("registros gravados = %d, esperado 0", existentes)
 	}
 }

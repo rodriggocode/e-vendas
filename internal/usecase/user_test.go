@@ -85,6 +85,7 @@ func TestCreateUser_RejeitaEntradaInvalida(t *testing.T) {
 		senhaIn         string
 	}{
 		{"nome vazio", "", "joao@example.com", "", "senha12345"},
+		{"nome longo", strings.Repeat("a", 121), "joao@example.com", "", "senha12345"},
 		{"email vazio", "João", "", "", "senha12345"},
 		{"email inválido", "João", "não-e-mail", "", "senha12345"},
 		{"senha curta", "João", "joao@example.com", "", "1234567"},
@@ -145,6 +146,7 @@ func TestValidateRegister_RejeitaEntradaInvalida(t *testing.T) {
 		senhaIn         string
 	}{
 		{"nome vazio", "", "joao@example.com", "", "senha12345"},
+		{"nome longo", strings.Repeat("a", 121), "joao@example.com", "", "senha12345"},
 		{"email vazio", "João", "", "", "senha12345"},
 		{"email inválido", "João", "não-e-mail", "", "senha12345"},
 		{"senha curta", "João", "joao@example.com", "", "1234567"},
