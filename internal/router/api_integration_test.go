@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"e-vendas/internal/config"
 	"e-vendas/internal/repository/postgres"
 
 	"github.com/jackc/pgx/v5"
@@ -49,7 +50,12 @@ func novoAmbienteDeFiacao(t *testing.T) (http.Handler, *pgxpool.Pool) {
 	}
 	t.Cleanup(pool.Close)
 
-	return Router(pool), pool
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("carregando config: %v", err)
+	}
+
+	return Router(pool, cfg), pool
 }
 
 func emailDeFiacao(t *testing.T, prefixo string) string {

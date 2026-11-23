@@ -28,7 +28,7 @@ func main() {
 
 	defer db.Close()
 
-	r := router.Router(db)
+	r := router.Router(db, cfg)
 
 	srv := &http.Server{
 		Handler:           r,
