@@ -60,6 +60,9 @@ DECLARE seq_name text;
 BEGIN
   IF NEW.number IS NULL THEN
     seq_name := 'orders_number_seq_' || replace(NEW.store_id::text, '-', '_');
+    -- duas primeiras compras simultâneas da mesma loja disputam a criação da
+    -- sequence; o advisory lock serializa e evita 23505 em pg_class (M-G)
+    PERFORM pg_advisory_xact_lock(hashtext(seq_name));
     IF to_regclass(seq_name) IS NULL THEN
       EXECUTE format('CREATE SEQUENCE %I', seq_name);
     END IF;
