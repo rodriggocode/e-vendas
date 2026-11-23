@@ -339,23 +339,22 @@ As tabelas têm dependências entre si. Crie nesta ordem:
 ```
 000001_create_updated_at_function
 000002_create_users
-000003_create_stores
-000004_create_store_users
-000005_create_categories
-000006_create_products
-000007_create_product_images
-000008_create_customers
-000009_create_orders
-000010_create_order_items
-000011_alter_users_admin_email
-000012_alter_stores_mvp
-000013_alter_orders_mvp
-000014_alter_order_items_notes
-000015_create_auth_tokens_and_order_history
+000003_add_phone_to_users
+000004_create_stores
+000005_create_store_users
+000006_create_categories
+000007_create_products
+000008_create_product_images
+000009_create_customers
+000010_create_orders
+000011_create_order_items
+000012_create_auth_tokens_and_order_history
 ```
 
-As migrations 11 a 15 ajustam as tabelas das 10 primeiras para as
-funcionalidades do MVP. Em um banco novo, rode todas em sequência.
+As tabelas já nascem com o schema final deste diagrama; o `000003` é o
+`add_phone_to_users` que entrou depois do `create_users` (o plano original o
+listava como `create_stores`, que hoje é o `000004`). Em um banco novo, rode
+todas em sequência.
 
 Cada migration tem os arquivos `.up.sql` e `.down.sql` (padrão do
 `golang-migrate`). Para desfazer, a ordem é a inversa.
