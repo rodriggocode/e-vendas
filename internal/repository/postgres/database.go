@@ -14,6 +14,11 @@ func Open(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
 		return nil, fmt.Errorf("Parse database url: %w", err)
 	}
 
+	// Isolamento padrao READ COMMITTED (o do pool) é premissa do
+	// orders_assign_number (migrations/000010): o advisory lock serializa a
+	// criacao da sequence e o to_regclass so enxerga a sequence depois do
+	// commit da transacao que a criou. Se mudar o isolamento aqui, revise o
+	// trigger antes de subir.
 	cfg.MaxConns = 10
 	cfg.MinConns = 2
 	cfg.MaxConnLifetime = 30 * time.Minute
