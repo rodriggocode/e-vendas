@@ -42,6 +42,8 @@ ALTER TABLE orders ADD CONSTRAINT ck_orders_change
 ALTER TABLE orders ADD CONSTRAINT ck_orders_cancel_reason CHECK (status = 'cancelled' OR cancel_reason IS NULL);
 ALTER TABLE orders ADD CONSTRAINT ck_orders_delivery_address
   CHECK (fulfillment_type <> 'delivery' OR shipping_address IS NOT NULL);
+ALTER TABLE orders ADD CONSTRAINT ck_orders_tracking_code
+  CHECK (char_length(tracking_code) >= 32);
 
 CREATE UNIQUE INDEX uq_orders_store_number ON orders (store_id, number);
 CREATE UNIQUE INDEX uq_orders_tracking_code ON orders (tracking_code);
@@ -50,14 +52,18 @@ CREATE INDEX ix_orders_store_created ON orders (store_id, created_at DESC);
 CREATE INDEX ix_orders_customer ON orders (customer_id);
 CREATE UNIQUE INDEX uq_orders_id_store ON orders (id, store_id);
 
--- numero do pedido: sequencial por loja, gerado no banco (BANCO-DE-DADOS.md, premissa 11)
+-- numero do pedido: sequencial por loja, gerado no banco (BANCO-DE-DADOS.md, premissa 11).
+-- Usa uma sequence por loja em vez de UPDATE em stores, para nao inflar stores.updated_at.
 CREATE OR REPLACE FUNCTION orders_assign_number()
 RETURNS TRIGGER AS $$
+DECLARE seq_name text;
 BEGIN
   IF NEW.number IS NULL THEN
-    UPDATE stores SET order_seq = order_seq + 1
-      WHERE id = NEW.store_id
-      RETURNING order_seq INTO NEW.number;
+    seq_name := 'orders_number_seq_' || replace(NEW.store_id::text, '-', '_');
+    IF to_regclass(seq_name) IS NULL THEN
+      EXECUTE format('CREATE SEQUENCE %I', seq_name);
+    END IF;
+    NEW.number := nextval(seq_name);
   END IF;
   RETURN NEW;
 END;
