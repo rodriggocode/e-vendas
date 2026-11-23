@@ -65,12 +65,14 @@ func (s *memStore) allow(key string, porMin, burst int) (bool, time.Duration) {
 	}
 	e.last = agora
 
+	// GC em toda chamada: um store que só recebe 429 também cresce por chave.
+	s.acessos++
+	if s.acessos%1000 == 0 {
+		s.limparOciosos(agora)
+	}
+
 	if e.tokens >= 1 {
 		e.tokens--
-		s.acessos++
-		if s.acessos%1000 == 0 {
-			s.limparOciosos(agora)
-		}
 		return true, 0
 	}
 
@@ -84,36 +86,6 @@ func (s *memStore) limparOciosos(agora time.Time) {
 			delete(s.entries, k)
 		}
 	}
-}
-
-// ClientIP devolve o IP do cliente. X-Forwarded-For só é honrado quando o peer
-// está nos proxies confiáveis; fora deles, o attacker escolheria o próprio
-// balde e contornaria o limite.
-func ClientIP(r *http.Request, trusted []*net.IPNet) string {
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		host = r.RemoteAddr
-	}
-
-	ip := net.ParseIP(host)
-	if ip == nil {
-		return "unknown"
-	}
-
-	for _, rede := range trusted {
-		if rede.Contains(ip) {
-			if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-				if primeiro := strings.TrimSpace(strings.Split(xff, ",")[0]); primeiro != "" {
-					if real := net.ParseIP(primeiro); real != nil {
-						return real.String()
-					}
-				}
-			}
-			break
-		}
-	}
-
-	return ip.String()
 }
 
 // RateLimit aplica cota por IP e por e-mail no registro. A chave entra no
@@ -141,10 +113,12 @@ func RateLimit(cfg RateLimitConfig, next http.Handler) http.Handler {
 	})
 }
 
-// emailDoPedido extrai o e-mail do corpo sem consumi-lo. Corpos acima do teto
-// não são lidos (o handler precisa vê-los inteiros para responder 413).
+// emailDoPedido extrai o e-mail do corpo sem descartá-lo. Corpo grande com
+// length conhecido não é lido (o handler precisa vê-lo inteiro para responder
+// 413); chunked/sem length é lido até o teto e o body é restaurado com
+// MultiReader, senão ficaria truncado.
 func emailDoPedido(r *http.Request) string {
-	if r.ContentLength < 0 || r.ContentLength > maxCorpoParaEmail {
+	if r.ContentLength > maxCorpoParaEmail {
 		return ""
 	}
 
@@ -152,7 +126,7 @@ func emailDoPedido(r *http.Request) string {
 	if err != nil {
 		return ""
 	}
-	r.Body = io.NopCloser(bytes.NewReader(corpo))
+	r.Body = io.NopCloser(io.MultiReader(bytes.NewReader(corpo), r.Body))
 
 	var req struct {
 		Email string `json:"email"`

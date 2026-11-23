@@ -1,11 +1,13 @@
 package router
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -67,14 +69,24 @@ func postRegistro(t *testing.T, h http.Handler, remoteAddr, xff, email string) *
 	return w
 }
 
-func assert429(t *testing.T, w *httptest.ResponseRecorder) {
+func assert429(t *testing.T, w *httptest.ResponseRecorder, tetoSegundos int) {
 	t.Helper()
 	if w.Code != http.StatusTooManyRequests {
 		t.Fatalf("status = %d, esperado 429; corpo: %s", w.Code, w.Body.String())
 	}
 	retry := w.Header().Get("Retry-After")
 	if retry == "" {
-		t.Error("429 sem header Retry-After")
+		t.Fatal("429 sem header Retry-After")
+	}
+	segundos, err := strconv.Atoi(retry)
+	if err != nil {
+		t.Fatalf("Retry-After = %q, esperado número de segundos", retry)
+	}
+	// O valor depende de quanto tempo decorreu entre a requisição que estourou
+	// e a leitura do header (faltam ceil((1-tokens)/taxa) segundos), então o
+	// assert é por intervalo: nunca abaixo de 1s e nunca acima do burst/taxa.
+	if segundos < 1 || segundos > tetoSegundos {
+		t.Errorf("Retry-After = %ds, esperado entre 1 e %ds", segundos, tetoSegundos)
 	}
 	var corpo map[string]any
 	if err := json.Unmarshal(w.Body.Bytes(), &corpo); err != nil {
@@ -96,7 +108,7 @@ func TestRateLimit_EstouraCotaDoIP(t *testing.T) {
 		switch w.Code {
 		case http.StatusTooManyRequests:
 			bloqueadas++
-			assert429(t, w)
+			assert429(t, w, 3)
 		default:
 			passaram++
 		}
@@ -166,5 +178,39 @@ func TestRateLimit_CotaPorEmailIndependeDoIP(t *testing.T) {
 		t.Fatal("primeira requisição do e-mail já levou 429")
 	}
 	w2 := postRegistro(t, h, "198.51.100.9:4321", "", email)
-	assert429(t, w2)
+	assert429(t, w2, 3)
+}
+
+func postRegistroChunked(t *testing.T, h http.Handler, remoteAddr, email string) *httptest.ResponseRecorder {
+	t.Helper()
+	corpo := []byte(`{"name":"QA Chunked","email":"` + email + `","password":"senha12345"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", bytes.NewReader(corpo))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = remoteAddr
+	// Simula Transfer-Encoding: chunked -> ContentLength == -1.
+	req.ContentLength = -1
+	req.TransferEncoding = []string{"chunked"}
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	return w
+}
+
+// TestRateLimit_ChunkedNaoEvitaCotaDeEmail fecha a evasao em que
+// ContentLength < 0 (chunked) pulava o balde de e-mail: o middleware precisa ler
+// o corpo ate o teto e restaura-lo, sem perder o 413 do handler.
+func TestRateLimit_ChunkedNaoEvitaCotaDeEmail(t *testing.T) {
+	h := handlerComCota(t, "600", "100", "60", "1")
+
+	email := emailDeFiacao(t, "rl.chunk")
+	w1 := postRegistroChunked(t, h, "203.0.113.7:4321", email)
+	if w1.Code == http.StatusTooManyRequests {
+		t.Fatal("primeira requisição chunked já levou 429")
+	}
+	if w1.Code != http.StatusCreated {
+		t.Fatalf("primeira chunked: status = %d, esperado 201; o corpo precisa ser restaurado: %s",
+			w1.Code, w1.Body.String())
+	}
+
+	w2 := postRegistroChunked(t, h, "198.51.100.9:4321", email)
+	assert429(t, w2, 3)
 }
