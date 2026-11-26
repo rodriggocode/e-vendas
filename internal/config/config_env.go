@@ -13,6 +13,8 @@ import (
 	"github.com/joho/godotenv"
 )
 
+var SecretKey []byte
+
 type Config struct {
 	DatabaseURL string
 	Port        string
@@ -54,6 +56,8 @@ func Load() (*Config, error) {
 	if port == "" {
 		port = "3000"
 	}
+
+	SecretKey = []byte(os.Getenv("SECRET_KEY"))
 
 	n, err := strconv.Atoi(port)
 	if err != nil || n < 1 || n > 65535 {

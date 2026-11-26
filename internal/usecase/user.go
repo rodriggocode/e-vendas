@@ -7,10 +7,10 @@ import (
 	"net/mail"
 	"strings"
 	"unicode/utf8"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
-// nameMaxLength acompanha o padrão de produto (ARQUITETURA.md 5.1) e fica
-// abaixo do limite físico da coluna users.name (VARCHAR(255)).
 const nameMaxLength = 120
 
 type UserCase struct {
@@ -23,8 +23,15 @@ func NewUserUsecase(repo domain.UserRepository) *UserCase {
 	}
 }
 
-func (us *UserCase) CreateUser(ctx context.Context, name, email, phone, password string) (domain.User, error) {
+type LoginUsecase struct{
+  login domain.LoginRepository
+}
 
+func NewLogin(login domain.LoginRepository) *LoginUsecase{
+  return &LoginUsecase{login: login}
+}
+
+func (us *UserCase) CreateUser(ctx context.Context, name, email, phone, password string) (domain.User, error) {
 	name = strings.TrimSpace(name)
 	email = strings.TrimSpace(email)
 	originalPhone := strings.TrimSpace(phone)
@@ -39,7 +46,7 @@ func (us *UserCase) CreateUser(ctx context.Context, name, email, phone, password
 		return domain.User{}, err
 	}
 
-	hash, err := security.HashPassword(password)
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return domain.User{}, err
 	}
@@ -52,7 +59,6 @@ func (us *UserCase) CreateUser(ctx context.Context, name, email, phone, password
 	}
 
 	userID, err := us.repository.CreateUser(ctx, user)
-
 	if err != nil {
 		return domain.User{}, err
 	}
@@ -99,6 +105,25 @@ func validateRegister(name, email, phone, password string) error {
 	return nil
 }
 
+func (us *UserCase) GetUsers(ctx context.Context) ([]domain.User, error) {
+	return us.repository.GetUsers(ctx)
+}
+
+
+func(us *LoginUsecase) Login(ctx context.Context, email, password string)(domain.User, error){
+  user, err := us.login.Login(ctx, email)
+  if err != nil{
+    return  domain.User{}, domain.ErrNotFound
+  }
+  if err := security.CheckPassword(user.PasswordHash, password); err != nil{
+    return  domain.User{}, domain.ErrNotFound
+  }
+
+  user.PasswordHash = ""
+
+  return user, nil
+}
+
 func onlyDigits(s string) string {
 	return strings.Map(func(r rune) rune {
 		if r >= '0' && r <= '9' {
@@ -107,3 +132,4 @@ func onlyDigits(s string) string {
 		return -1
 	}, s)
 }
+

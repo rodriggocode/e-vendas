@@ -1,5 +1,7 @@
 package handler
 
+import "time"
+
 type RegisterRequest struct {
 	Name     string `json:"name"`
 	Email    string `json:"email"`
@@ -12,4 +14,16 @@ type RegisterResponse struct {
 	Name  string `json:"name"`
 	Email string `json:"email"`
 	Phone string `json:"phone"`
+}
+
+type UserResponse struct {
+	ID              int        `json:"id"`
+	Name            string     `json:"name"`
+	Email           string     `json:"email"`
+	Phone           string     `json:"phone"`
+	Active          bool       `json:"active"`
+	IsPlatformAdmin bool       `json:"is_platform_admin"`
+	EmailVerifiedAt *time.Time `json:"email_verified_at"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
 }

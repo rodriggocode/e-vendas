@@ -23,7 +23,6 @@ func NewUserHandler(usercase *usecase.UserCase) userHandler {
 }
 
 func (us *userHandler) Register(w http.ResponseWriter, r *http.Request) {
-
 	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || mediaType != "application/json" {
 		responses.ResponseError(w, http.StatusUnsupportedMediaType, "unsupported_media_type", "Content-Type deve ser application/json")
@@ -39,7 +38,6 @@ func (us *userHandler) Register(w http.ResponseWriter, r *http.Request) {
 	decoder.DisallowUnknownFields()
 
 	err = decoder.Decode(&req)
-
 	if err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
@@ -58,7 +56,6 @@ func (us *userHandler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	insertedUser, err := us.userCase.CreateUser(r.Context(), req.Name, req.Email, req.Phone, req.Password)
-
 	if err != nil {
 		var vErr *domain.ValidationError
 
@@ -83,5 +80,36 @@ func (us *userHandler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	responses.JSON(w, http.StatusCreated, resp)
+}
 
+func (us *userHandler) GetUsers(w http.ResponseWriter, r *http.Request) {
+	var res []UserResponse
+
+	users, err := us.userCase.GetUsers(r.Context())
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": err.Error(),
+		})
+
+		return
+	}
+
+	for _, user := range users {
+		resp := UserResponse{
+			ID:              user.ID,
+			Name:            user.Name,
+			Email:           user.Email,
+			Phone:           user.Phone,
+			Active:          user.Active,
+			IsPlatformAdmin: user.IsPlatformAdmin,
+			EmailVerifiedAt: user.EmailVerifiedAt,
+			CreatedAt:       user.CreatedAt,
+			UpdatedAt:       user.UpdatedAt,
+		}
+
+		res = append(res, resp)
+	}
+
+	responses.JSON(w, http.StatusOK, res)
 }

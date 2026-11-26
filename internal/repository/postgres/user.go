@@ -4,9 +4,9 @@ import (
 	"context"
 	"e-vendas/internal/domain"
 	"errors"
-
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -49,5 +49,29 @@ func (repo *UserRepository) CreateUser(ctx context.Context, user domain.User) (i
 	}
 
 	return id, nil
+}
 
+func (repo *UserRepository) GetUsers(ctx context.Context) ([]domain.User, error) {
+	query := `
+    SELECT
+        id,
+        name,
+        email,
+        COALESCE(phone, '') AS phone,
+        active,
+        is_platform_admin,
+        email_verified_at,
+        created_at,
+        updated_at
+    FROM users
+`
+
+	rows, err := repo.db.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("get all users: %w", err)
+	}
+
+	defer rows.Close()
+
+	return pgx.CollectRows(rows, pgx.RowToStructByNameLax[domain.User])
 }
