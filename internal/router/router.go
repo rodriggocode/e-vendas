@@ -3,12 +3,12 @@ package router
 import (
 	"e-vendas/internal/config"
 	"e-vendas/internal/handler"
+	"e-vendas/internal/middleware"
 	"e-vendas/internal/repository/postgres"
 	"e-vendas/internal/responses"
 	"e-vendas/internal/usecase"
-	"net/http"
-
 	"github.com/jackc/pgx/v5/pgxpool"
+	"net/http"
 )
 
 // Router monta a API. Ordem dos middlewares: recover → headers → CORS → mux;
@@ -24,7 +24,7 @@ func Router(db *pgxpool.Pool, cfg *config.Config) http.Handler {
 	loginHandler := handler.NewLoginHandler(loginUsecase)
 
 	r.HandleFunc("POST /api/v1/auth/register", userHandler.Register)
-	r.HandleFunc("GET /api/v1/users", userHandler.GetUsers)
+	r.HandleFunc("GET /api/v1/users", middleware.Authentication(userHandler.GetUsers))
 	r.HandleFunc("POST /api/v1/login", loginHandler.Login)
 	r.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		responses.JSON(w, http.StatusOK, struct {

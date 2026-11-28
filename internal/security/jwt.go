@@ -55,10 +55,10 @@ func ExtractUserID(r *http.Request) (int, error) {
 }
 
 func extractToken(r *http.Request) string {
-	token := r.Header.Get("Authorized")
-	if len(strings.Split(token, " ")) == 2 {
-		return strings.Split(token,"")[1]
-	}
+    parts := strings.Split(r.Header.Get("Authorization"), " ")
+    if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer"){
+        return parts[1]
+    }
 
 	return ""
 }

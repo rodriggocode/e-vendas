@@ -24,7 +24,9 @@ func NewLoginUseCase(repository domain.LoginRepository) *LoginUseCase{
 func(us *LoginUseCase)Login(ctx context.Context, email, password string)(domain.User, string,error){
    user, err := us.repository.Login(ctx, email)
    if err != nil{
-       return domain.User{}, "", ErrInvalidCredentials
+       if errors.Is(err, domain.ErrNotFound){
+           return domain.User{}, "", ErrInvalidCredentials
+       }
    }
 
    err = security.CheckPassword(user.PasswordHash, password)
