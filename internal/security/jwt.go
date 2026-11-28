@@ -36,12 +36,14 @@ func ValidateToken(r *http.Request) error {
 }
 
 func ExtractUserID(r *http.Request) (int, error) {
+    tokenString := extractToken(r)
+    token, err := jwt.Parse(tokenString, returnKey)
 	if err != nil {
 		return 0, err
 	}
 
-	if permission, ok := token.Claims.(jwt.MapClaims); ok && token.Valid() {
-		userID, err := strconv.ParseInt(fmt.Sprintf("%.0f", permission["id_user"]))
+	if permission, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		userID, err := strconv.ParseInt(fmt.Sprintf("%.0f", permission["id"]), 10, 0)
 		if err != nil {
 			return 0, err
 		}
@@ -55,7 +57,7 @@ func ExtractUserID(r *http.Request) (int, error) {
 func extractToken(r *http.Request) string {
 	token := r.Header.Get("Authorized")
 	if len(strings.Split(token, " ")) == 2 {
-		return strings.Split(token)[1]
+		return strings.Split(token,"")[1]
 	}
 
 	return ""
